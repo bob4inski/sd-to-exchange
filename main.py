@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 
 class Calendar():
 
+    categories = {}
+
     def __init__(self, account: str, calendar_name: str, host: str, port: int, password: str):
 
         outlook = win32com.client.Dispatch("Outlook.Application")
@@ -24,6 +26,43 @@ class Calendar():
                                 decode_responses=True
                             )
 
+    def get_categories(self):
+        categories = {}
+
+        categories_outlook = self.namespace.Categories
+
+        for category in categories_outlook:
+            categories[category.Name] = category.Color
+
+        return categories,categories_outlook
+    
+    def update_categories(self, events):
+        actual_categories, categories_outlook  = self.get_categories() # получаем те категории, которые уже существуют в календаре
+        all_categories_from_sd = set(events["object"]) # получаем список категорий, которые есть в списке задач
+        new_categories = list(all_categories_from_sd - set(actual_categories))
+
+        all_colors = list(range(len(actual_categories) + 1)) 
+        free_colors = list(set(all_colors) - set(actual_categories.values()))
+
+        if len(free_colors) == 0:
+            print("Нет доступных цветов")
+        else:
+            if new_categories:
+                k = 1
+                for i in new_categories:
+                    print(f'Добавляю категорю {i} с цветом {k}')
+                    try:
+                        new_category = categories_outlook.Add(i,free_colors[k])
+                        print(f'Добавил категорю {i} с цветом {k}')
+                    except Exception as ex:
+                        print(ex)
+                    k += 1
+                else:
+                    print("Все итерации прошли успешно")
+            else:
+                print("Все категории итак на месте")
+
+
     def get_event(self, event_id):
         event = self.namespace.GetItemFromId(event_id)
         logging.debug(f"get event {event_id}")
@@ -35,6 +74,7 @@ class Calendar():
         new_event.Location = location
         new_event.body = f"https://sd.talantiuspeh.ru/issues/{body}"
         new_event.Subject = subject
+        new_event.Categories = location
         new_event.Start = time_start
         new_event.End = time_finish
         new_event.Save()
@@ -43,12 +83,13 @@ class Calendar():
         logging.info(f"event {id}  added to calendar {self.calendar_name}")
 
     def update_event(self, subject: str, body: str, location: str, event_id: str,  time_start, time_finish):
-
+        print(location)
         event = self.get_event(event_id)
         event.Location = location
         event.body = f"https://sd.talantiuspeh.ru/issues/{body}"
         event.Subject = subject
         event.Start = time_start
+        event.Categories = location
         event.End = time_finish
         event.Save()
 
@@ -63,9 +104,8 @@ class Calendar():
         logging.info("everything deleted")
 
 
-def upload(calendar):
-    events = normalize()
-
+def upload(calendar, events):
+    
     for index, row in events.iterrows():
         start_date = datetime.strptime(row["start"], "%Y-%m-%d %H:%M:%S")
         # start_date = row["start"]
@@ -121,8 +161,13 @@ def main():
 
     cal = Calendar(account=user_email, calendar_name=calendar_name, host=host, port=port, password=passwd)
 
-    # cal.delete_all()
-    upload(cal)
+    events = normalize() #получение таблицы всех заявок с полями 
+
+    cal.update_categories(events=events) # обновление категорий в календаре чтобы отражать по цветам
+
+    # cal.delete_all() #выстрел себе в колено
+
+    upload(cal,events) #загрузка всех заявок в календарь 
 
     logging.info('Finished')
 
