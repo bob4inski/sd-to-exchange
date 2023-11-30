@@ -84,9 +84,6 @@ class Calendar():
             logging.CRITICAL(f"event {body} cant be updated")
             logging.DEBUG(f"event {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
 
-
-        
-
     def update_event(self, subject: str, body: str, location: str, event_id: str,  time_start, time_finish):
 
         event = self.get_event(event_id)
@@ -103,8 +100,6 @@ class Calendar():
             logging.CRITICAL(f"event {subject} cant be updated")
             logging.DEBUG(f"event {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
 
-
-        
 
     def delete_all(self):
         events = self.calendar.Items
@@ -144,7 +139,9 @@ def upload(calendar, events):
                                       time_start=start_date,
                                       time_finish=finish_date)
         except Exception as ex:
-            logging.critical(ex)
+            logging.critical(ex)      
+    else:
+        logging.info("upload finished")
 
 
 def main():
@@ -160,7 +157,7 @@ def main():
     now = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     filename = f'logs/{str(now)}.log'
 
-    logging.basicConfig(filename=filename, level=logging.INFO)
+    logging.basicConfig(filename=filename, level=logging.DEBUG)
     logging.info('Started')
 
     user_email = os.environ['USER_EMAIL']
@@ -178,8 +175,6 @@ def main():
     # cal.delete_all() #выстрел себе в колено
 
     upload(cal,events) #загрузка всех заявок в календарь 
-
-    logging.info('Finished')
 
 if __name__ == '__main__':
     main()
