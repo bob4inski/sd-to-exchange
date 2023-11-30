@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 class Calendar():
 
     categories = {}
-
     def __init__(self, account: str, calendar_name: str, host: str, port: int, password: str):
 
         outlook = win32com.client.Dispatch("Outlook.Application")
@@ -45,22 +44,22 @@ class Calendar():
         free_colors = list(set(all_colors) - set(actual_categories.values()))
 
         if len(free_colors) == 0:
-            print("Нет доступных цветов")
+            logging.info("Нет доступных цветов")
         else:
             if new_categories:
                 k = 1
                 for i in new_categories:
-                    print(f'Добавляю категорю {i} с цветом {k}')
+                    logging.debug(f'Добавляю категорю {i} с цветом {k}')
                     try:
                         new_category = categories_outlook.Add(i,free_colors[k])
-                        print(f'Добавил категорю {i} с цветом {k}')
+                        logging.debug(f'Добавил категорю {i} с цветом {k}')
                     except Exception as ex:
-                        print(ex)
+                        logging.CRITICAL(ex)
                     k += 1
                 else:
-                    print("Все итерации прошли успешно")
+                    logging.debug("Все итерации прошли успешно")
             else:
-                print("Все категории итак на месте")
+                logging.debug("Все категории уже существуют")
 
 
     def get_event(self, event_id):
@@ -75,26 +74,37 @@ class Calendar():
         new_event.body = f"https://sd.talantiuspeh.ru/issues/{body}"
         new_event.Subject = subject
         new_event.Categories = location
-        new_event.Start = time_start
-        new_event.End = time_finish
-        new_event.Save()
+        new_event.Start = time_start + timedelta(hours=3)
+        new_event.End = time_finish + timedelta(hours=3)
+        try:
+            new_event.Save()
+            self.db_connection.set(id, new_event.EntryId)
+            logging.info(f"event {id}  added to calendar {self.calendar_name}")
+        except Exception as ex:
+            logging.CRITICAL(f"event {body} cant be updated")
+            logging.DEBUG(f"event {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
 
-        self.db_connection.set(id, new_event.EntryId)
-        logging.info(f"event {id}  added to calendar {self.calendar_name}")
+
+        
 
     def update_event(self, subject: str, body: str, location: str, event_id: str,  time_start, time_finish):
-        print(location)
+
         event = self.get_event(event_id)
         event.Location = location
         event.body = f"https://sd.talantiuspeh.ru/issues/{body}"
         event.Subject = subject
-        event.Start = time_start
         event.Categories = location
+        event.Start = time_start
         event.End = time_finish
-        event.Save()
+        try:
+            event.Save()
+            logging.info(f"event {subject} updated")
+        except Exception as ex:
+            logging.CRITICAL(f"event {subject} cant be updated")
+            logging.DEBUG(f"event {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
 
-        event.Save()
-        logging.info(f"event {subject} updated")
+
+        
 
     def delete_all(self):
         events = self.calendar.Items
@@ -107,13 +117,13 @@ class Calendar():
 def upload(calendar, events):
     
     for index, row in events.iterrows():
-        start_date = datetime.strptime(row["start"], "%Y-%m-%d %H:%M:%S")
+        start_date = datetime.strptime(row["start"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3)
         # start_date = row["start"]
 
         if row["finish"] == "":
-            finish_date = start_date + timedelta(hours=1)
+            finish_date = start_date + timedelta(hours=1) + timedelta(hours=3)
         else:
-            finish_date = row["finish"]
+            finish_date = datetime.strptime(row["finish"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3)
 
         logging.debug(f'{row["id"]}, {start_date}, {finish_date}')
 
@@ -148,7 +158,7 @@ def main():
         return False
 
     now = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-    filename = f'{str(now)}.log'
+    filename = f'logs/{str(now)}.log'
 
     logging.basicConfig(filename=filename, level=logging.INFO)
     logging.info('Started')
