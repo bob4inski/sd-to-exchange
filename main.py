@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
 from accidents import normalize
+from events import get_dataframed_events
 
 class Calendar():
 
@@ -15,7 +16,12 @@ class Calendar():
         outlook = win32com.client.Dispatch("Outlook.Application")
         self.namespace = outlook.GetNamespace("MAPI")
         self.calendar_name = calendar_name
-        self.calendar = self.namespace.Folders.Item(account).Folders.Item("Календарь").Folders.Item(calendar_name)
+        print(calendar_name)
+        try:
+            self.calendar = self.namespace.Folders.Item(account).Folders.Item("Календарь").Folders.Item(calendar_name)
+        except Exception as ex:
+            print(ex)
+            exit(1)
 
         self.db_connection = Redis(
                                 host= host or "10.9.44.12",
@@ -63,7 +69,7 @@ class Calendar():
 
     def get_accident(self, accident_id):
         accident = self.namespace.GetItemFromId(accident_id)
-        logging.debug(f"get accident {accident_id}")
+        logging.debug(f"get issue {accident_id}")
         return accident
 
     def new_accident(self, subject: str, body: str, location: str, id: str,  time_start, time_finish):
@@ -99,6 +105,39 @@ class Calendar():
             logging.CRITICAL(f"accident {subject} cant be updated")
             logging.DEBUG(f"accident {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
 
+    def new_event(self, subject: str, body: str, location: str, id: str,  time_start: str , time_finish: str):
+        new_event = self.calendar.Items.Add(1)
+        new_event.Location = location
+        new_event.body = f"https://sd.talantiuspeh.ru/issues/{body}"
+        new_event.Subject = subject
+        new_event.Categories = location
+        new_event.Start = time_start 
+        new_event.End = time_finish 
+        try:
+            new_event.Save()
+            self.db_connection.set(id, new_event.EntryId)
+            logging.info(f"event {id}  added to calendar {self.calendar_name}")
+        except Exception as ex:
+            print(ex)
+            logging.CRITICAL(f"event {body} cant be updated")
+            logging.DEBUG(f"event {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
+
+    def update_event(self, subject: str, body: str, location: str, event_id: str,  time_start: str , time_finish: str):
+
+        event = self.get_accident(event_id)
+        event.Location = location
+        event.body = f"https://sd.talantiuspeh.ru/issues/{body}"
+        event.Subject = subject
+        event.Categories = location
+        event.Start = time_start
+        event.End = time_finish
+        try:
+            event.Save()
+            logging.info(f"event {subject} updated")
+        except Exception as ex:
+            print(ex)
+            logging.CRITICAL(f"event {subject} cant be updated")
+            logging.DEBUG(f"event {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
 
     def delete_all(self):
         accidents = self.calendar.Items
@@ -108,7 +147,7 @@ class Calendar():
         logging.info("everything deleted")
 
 
-def upload_calendar(calendar, accidents):
+def upload_accidents(calendar, accidents):
     
     for index, row in accidents.iterrows():
         start_date = datetime.strptime(row["start"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3)
@@ -143,6 +182,31 @@ def upload_calendar(calendar, accidents):
         logging.info("upload finished")
 
 
+def upload_events(calendar, events):
+    for index, row in events.iterrows():
+        logging.debug(f'{row["id"]}, {row["start_time"]}, {row["finish_time"]}')
+
+        event_id = calendar.db_connection.get(row["id"])
+        if event_id:
+            calendar.update_event(subject=row["subject"],
+                            location=row["location"],
+                            body=row["id"],
+                            event_id=event_id,
+                            time_start=row["start_time"],
+                            time_finish=row["finish_time"])
+        else:
+            calendar.new_event(subject=row["subject"],
+                                location=row["location"],
+                                body=row["id"],
+                                id=row["id"],
+                                time_start=row["start_time"],
+                                time_finish=row["finish_time"])
+
+    else:
+        logging.info("upload finished")
+
+
+
 def main():
 
     dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
@@ -160,18 +224,33 @@ def main():
     logging.info('Started')
 
     user_email = os.environ['USER_EMAIL']
-    calendar_name = os.environ['CALENDAR_NAME']
-    host = os.environ['REDIS_HOST']
-    port = os.environ['REDIS_PORT']
-    passwd = os.environ['REDIS_PASSWD']
 
-    accident_calendar = Calendar(account=user_email, calendar_name=calendar_name, host=host, port=port, password=passwd)
-    accidents = normalize() #получение таблицы всех заявок с полями 
-    accident_calendar.update_categories(accidents=accidents) # обновление категорий в календаре чтобы отражать по цветам
+    accidents_calendar = os.environ['ACCIDENTS_CALENDAR']
+    events_calendar = os.environ['EVENTS_CALENDAR']
 
-    # cal.delete_all() #выстрел себе в колено
+    redis_host = os.environ['REDIS_HOST']
+    redis_port = os.environ['REDIS_PORT']
+    redis_passwd = os.environ['REDIS_PASSWD']
 
-    upload_calendar(accident_calendar,accidents) #загрузка всех заявок в календарь 
+    # try:
+    #     accident_calendar = Calendar(account=user_email, calendar_name=events_calendar, host=host, port=port, password=passwd)
+    #     accidents = normalize() #получение таблицы всех заявок с полями 
+    #     accident_calendar.update_categories(accidents=accidents) # обновление категорий в календаре чтобы отражать по цветам
+    #     # cal.delete_all() #выстрел себе в колено
+    #     upload_accidents(accident_calendar,accidents) #загрузка всех заявок в календарь 
+    # except Exception as ex:
+    #     print(ex)
+
+    try:
+        events_calendar = Calendar(account=user_email, calendar_name=events_calendar, host=redis_host, port=redis_port, password=redis_passwd)
+        events = get_dataframed_events() #получение таблицы всех заявок с полями 
+        print("ok")
+        # cal.delete_all() #выстрел себе в колено
+        upload_events(calendar=events_calendar, events=events) #загрузка всех заявок в календарь 
+        logging.INFO("Okaaay")
+    except Exception as ex:
+        print(ex)
+    
 
 if __name__ == '__main__':
     main()
