@@ -24,17 +24,15 @@ class Calendar():
             exit(1)
 
         self.db_connection = Redis(
-                                host= host or "10.9.44.12",
-                                port= port or 6379,
-                                password= password or "biba",
+                                host= host,
+                                port= port,
+                                password= password,
                                 decode_responses=True
                             )
 
     def get_categories(self):
         categories = {}
-
         categories_outlook = self.namespace.Categories
-
         for category in categories_outlook:
             categories[category.Name] = category.Color
 
@@ -65,6 +63,16 @@ class Calendar():
                     logging.debug("Все итерации прошли успешно")
             else:
                 logging.debug("Все категории уже существуют")
+
+    def delete_by_id(self, issue_id):
+
+        exchange_id = self.db_connection.get(issue_id)
+        accident = self.namespace.GetItemFromId(exchange_id)
+        accident.Delete()
+        logging.debug(f"issue {issue_id} deleted from exchange")
+
+        self.db_connection.delete(issue_id)
+        logging.debug(f"issue {issue_id} deleted from redis")
 
 
     def get_accident(self, accident_id):
@@ -115,7 +123,9 @@ class Calendar():
         new_event.End = time_finish 
         try:
             new_event.Save()
+
             self.db_connection.set(id, new_event.EntryId)
+
             logging.info(f"event {id}  added to calendar {self.calendar_name}")
         except Exception as ex:
             print(ex)
@@ -151,7 +161,6 @@ def upload_accidents(calendar, accidents):
     
     for index, row in accidents.iterrows():
         start_date = datetime.strptime(row["start"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3)
-        # start_date = row["start"]
 
         if row["finish"] == "":
             finish_date = start_date + timedelta(hours=1) + timedelta(hours=3)
@@ -188,34 +197,40 @@ def upload_events(calendar, events):
 
         event_id = calendar.db_connection.get(row["id"])
         if event_id:
-            calendar.update_event(subject=row["subject"],
+            if row["close_code"] == "МР-8":
+                logging.info(f'мероприятие {row["id"]} будет удалено  ')
+                calendar.delete_by_id(row["id"])
+                logging.info(f'мероприятие {row["id"]} удалено  ')
+            else:
+                calendar.update_event(subject=row["subject"],
                             location=row["location"],
                             body=row["id"],
                             event_id=event_id,
                             time_start=row["start_time"],
                             time_finish=row["finish_time"])
         else:
-            calendar.new_event(subject=row["subject"],
+            if row["close_code"] == "МР-8":
+                logging.info(f'мероприятие {row["id"]} не будет создано')
+            else:
+                calendar.new_event(subject=row["subject"],
                                 location=row["location"],
                                 body=row["id"],
                                 id=row["id"],
                                 time_start=row["start_time"],
                                 time_finish=row["finish_time"])
-
     else:
         logging.info("upload finished")
 
 
 
 def main():
-
     dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
     
     if os.path.exists(dotenv_path):
         load_dotenv(dotenv_path)
     else:
         logging.CRITICAL('There is no .env file!')
-        return False
+        exit(1)
 
     now = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
     filename = f'logs/{str(now)}.log'
@@ -244,10 +259,10 @@ def main():
     try:
         events_calendar = Calendar(account=user_email, calendar_name=events_calendar, host=redis_host, port=redis_port, password=redis_passwd)
         events = get_dataframed_events() #получение таблицы всех заявок с полями 
-        print("ok")
         # cal.delete_all() #выстрел себе в колено
         upload_events(calendar=events_calendar, events=events) #загрузка всех заявок в календарь 
-        logging.INFO("Okaaay")
+
+        logging.info("Okaaay")
     except Exception as ex:
         print(ex)
     
