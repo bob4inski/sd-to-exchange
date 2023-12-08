@@ -1,12 +1,12 @@
+from conenctions.redmine import get_locations_from_db
+from datetime import datetime, timedelta
+from redminelib import Redmine
 from dotenv import load_dotenv
 import logging
 import pandas as pd
 import numpy as np
 import requests
 import os
-
-from conenctions.redmine import get_locations_from_db
-from conenctions.redmine import get_from_api
 
 def get_accidents_from_api(locations: dict):
     dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
@@ -19,37 +19,46 @@ def get_accidents_from_api(locations: dict):
     
     try:
         logging.debug('try to get data')
-        data = get_from_api(url=url, redmine_key=key)
+        redmine = Redmine("https://sd.talantiuspeh.ru/", key=key)
+        issues = redmine.issue.filter(
+                    project_id=29,
+                    status_id = "*",
+                    created_on='><2023-12-01'   
+        )
     except Exception as ex:
         logging.debug(ex)
+        exit(1)
 
-    if data["issues"]:
-        issues = data["issues"]
+    if issues:
         issues_list = []
 
-        for row in issues:
-            issue = {
-                "id": row["id"],
-                "subject": row["subject"],
-                "status_id": row["status"]["id"],
-                "start": "",
-                "finish": "",
-                "object": "None"
+        for issue in issues:
+            issue_dict = {
+                "id": issue.id,
+                "subject": issue.subject,
+                "status": issue.status,
+                "start_time": "",
+                "finish_time": "",
+                "location": "None"
                 }
 
-            for custom_field in row["custom_fields"]:
-                if custom_field["id"] == 146:
-                    issue["start"] = custom_field["value"]
+            for custom_field in issue.custom_fields:
+                if custom_field.id == 146:
+                    issue_dict["start_time"] = str(datetime.strptime(custom_field.value , "%Y-%m-%d %H:%M:%S") + timedelta(hours=3))
 
-                if custom_field["id"] == 147:
-                    issue["finish"] = custom_field["value"]
+                if custom_field.id == 147:
+                    issue_dict["finish_time"] = custom_field.value
 
-                if custom_field["id"] == 110:
-                    issue["object"] = locations[int(custom_field["value"])]
+                if custom_field.id == 110:
+                    issue_dict["location"] = locations[int(custom_field.value)]
 
-            issues_list.append(issue)
+            if issue_dict["finish_time"] == "":
+                finish_date = str(datetime.strptime(issue_dict["start_time"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=1))
+            else:
+                issue_dict["finish_time"] = str(datetime.strptime(issue_dict["finish_time"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3))
+            issues_list.append(issue_dict)
 
-        df = pd.DataFrame(issues_list, columns=["id", "subject", "status_id", "start", "finish", "object"])
+        df = pd.DataFrame(issues_list, columns=["id", "subject", "status_id", "start_time", "finish_time", "location"])
 
         return df
     else:
@@ -59,12 +68,12 @@ def get_accidents_from_api(locations: dict):
 
 def normalize():
     locations_from_bd = get_locations_from_db()
-
-    # accidents = get_accidents_from_bd()
     accidents = get_accidents_from_api(locations=locations_from_bd)
 
-    accidents["start"].replace("", np.nan, inplace=True)
-    accidents.dropna(subset=['start'], inplace=True)
+    accidents["start_time"].replace("", np.nan, inplace=True)
+    accidents.dropna(subset=['start_time'], inplace=True)
+
+    logging.info("dataframe loaded successfully")
 
     return accidents
 
