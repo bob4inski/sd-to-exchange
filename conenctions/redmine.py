@@ -26,15 +26,3 @@ def get_locations_from_db():
     return response_dict
 
 
-def get_from_api(url: str, redmine_key: str):
-
-    headers = {
-        'Content-Type': 'application/json',
-        'X-Redmine-API-Key': redmine_key,
-    }
-
-    response = requests.get(url, headers=headers)
-
-    return response.json()
-
-
