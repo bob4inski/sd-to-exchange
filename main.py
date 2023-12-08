@@ -16,7 +16,6 @@ class Calendar():
         outlook = win32com.client.Dispatch("Outlook.Application")
         self.namespace = outlook.GetNamespace("MAPI")
         self.calendar_name = calendar_name
-        print(calendar_name)
         try:
             self.calendar = self.namespace.Folders.Item(account).Folders.Item("Календарь").Folders.Item(calendar_name)
         except Exception as ex:
@@ -87,8 +86,8 @@ class Calendar():
         new_accident.body = f"https://sd.talantiuspeh.ru/issues/{body}"
         new_accident.Subject = subject
         new_accident.Categories = location
-        new_accident.Start = time_start + timedelta(hours=3)
-        new_accident.End = time_finish + timedelta(hours=3)
+        new_accident.Start = time_start
+        new_accident.End = time_finish 
         try:
             new_accident.Save()
             self.db_connection.set(id, new_accident.EntryId)
@@ -114,6 +113,7 @@ class Calendar():
             logging.DEBUG(f"accident {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
 
     def new_event(self, subject: str, body: str, location: str, id: str,  time_start: str , time_finish: str):
+        
         new_event = self.calendar.Items.Add(1)
         new_event.Location = location
         new_event.body = f"https://sd.talantiuspeh.ru/issues/{body}"
@@ -158,33 +158,24 @@ class Calendar():
 
 
 def upload_accidents(calendar, accidents):
-    
     for index, row in accidents.iterrows():
-        start_date = datetime.strptime(row["start"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3)
-
-        if row["finish"] == "":
-            finish_date = start_date + timedelta(hours=1) + timedelta(hours=3)
-        else:
-            finish_date = datetime.strptime(row["finish"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3)
-
-        logging.debug(f'{row["id"]}, {start_date}, {finish_date}')
-
+        logging.debug(f'{row["id"]}, {row["start_time"]}, {row["finish_time"]}')
         try:
             accident_id = calendar.db_connection.get(row["id"])
             if accident_id:
                 calendar.update_accident(subject=row["subject"],
-                                   location=row["object"],
+                                   location=row["location"],
                                    body=row["id"],
                                    accident_id=accident_id,
-                                   time_start=start_date,
-                                   time_finish=finish_date)
+                                   time_start=row["start_time"],
+                                   time_finish=row["finish_time"])
             else:
                 calendar.new_accident(subject=row["subject"],
-                                      location=row["object"],
+                                      location=row["location"],
                                       body=row["id"],
                                       id=row["id"],
-                                      time_start=start_date,
-                                      time_finish=finish_date)
+                                      time_start=row["start_time"],
+                                      time_finish=row["finish_time"])
         except Exception as ex:
             logging.critical(ex)      
     else:
@@ -232,11 +223,6 @@ def main():
         logging.CRITICAL('There is no .env file!')
         exit(1)
 
-    now = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-    filename = f'logs/{str(now)}.log'
-
-    logging.basicConfig(filename=filename, level=logging.DEBUG)
-    logging.info('Started')
 
     user_email = os.environ['USER_EMAIL']
 
@@ -244,27 +230,34 @@ def main():
     events_calendar = os.environ['EVENTS_CALENDAR']
 
     redis_host = os.environ['REDIS_HOST']
-    redis_port = os.environ['REDIS_PORT']
+    redis_accident_port = os.environ['REDIS_ACCIDENTS_PORT']
+    redis_events_port = os.environ['REDIS_EVENTS_PORT']
     redis_passwd = os.environ['REDIS_PASSWD']
 
-    # try:
-    #     accident_calendar = Calendar(account=user_email, calendar_name=events_calendar, host=host, port=port, password=passwd)
-    #     accidents = normalize() #получение таблицы всех заявок с полями 
-    #     accident_calendar.update_categories(accidents=accidents) # обновление категорий в календаре чтобы отражать по цветам
-    #     # cal.delete_all() #выстрел себе в колено
-    #     upload_accidents(accident_calendar,accidents) #загрузка всех заявок в календарь 
-    # except Exception as ex:
-    #     print(ex)
+    now = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    filename = f'logs/{str(now)}.log'
+    logging.basicConfig(filename=filename, level=logging.DEBUG)
+    
+    try:
+        logging.info('Started accidents')
+        accident_calendar = Calendar(account=user_email, calendar_name=accidents_calendar, host=redis_host, port=redis_accident_port, password=redis_passwd)
+        accidents = normalize() #получение таблицы всех заявок с полями 
+        # accident_calendar.update_categories(accidents=accidents) # обновление категорий в календаре чтобы отражать по цветам
+        # cal.delete_all() #выстрел себе в колено
+        upload_accidents(accident_calendar,accidents) #загрузка всех заявок в календарь 
+    except Exception as ex:
+        logging.critical(ex)
 
     try:
-        events_calendar = Calendar(account=user_email, calendar_name=events_calendar, host=redis_host, port=redis_port, password=redis_passwd)
+        logging.info('Started events')
+        events_calendar = Calendar(account=user_email, calendar_name=events_calendar, host=redis_host, port=redis_events_port, password=redis_passwd)
         events = get_dataframed_events() #получение таблицы всех заявок с полями 
-        # cal.delete_all() #выстрел себе в колено
+        # events_calendar.delete_all() #выстрел себе в колено удаление всех записей из календаря
         upload_events(calendar=events_calendar, events=events) #загрузка всех заявок в календарь 
 
         logging.info("Okaaay")
     except Exception as ex:
-        print(ex)
+        logging.critical(ex)
     
 
 if __name__ == '__main__':
