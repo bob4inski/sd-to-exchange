@@ -7,7 +7,6 @@ import os
 
  
 from conenctions.redmine import get_locations_from_db
-from conenctions.redmine import get_from_api
 from datetime import datetime, timedelta
 from redminelib import Redmine
 
@@ -23,7 +22,9 @@ def get_events_from_api(locations: dict):
         redmine = Redmine("https://sd.talantiuspeh.ru/", key=key)
         issues = redmine.issue.filter(
                     project_id=9,
-                    limit=1000
+                    limit=1000,
+                    status_id = "*",
+                    created_on='><2023-12-01',
                 )
     except Exception as ex:
         logging.debug(ex)
