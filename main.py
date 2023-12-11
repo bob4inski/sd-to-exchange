@@ -81,7 +81,6 @@ class Calendar():
 
     def new_accident(self, subject: str, body: str, location: str, id: str,  time_start, time_finish):
         new_accident = self.calendar.Items.Add(1)
-
         new_accident.Location = location
         new_accident.body = f"https://sd.talantiuspeh.ru/issues/{body}"
         new_accident.Subject = subject
@@ -93,8 +92,8 @@ class Calendar():
             self.db_connection.set(id, new_accident.EntryId)
             logging.info(f"accident {id}  added to calendar {self.calendar_name}")
         except Exception as ex:
-            logging.CRITICAL(f"accident {body} cant be updated")
-            logging.DEBUG(f"accident {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
+            logging.critical(f"accident {body} cant be updated")
+            logging.debug(f"accident {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
 
     def update_accident(self, subject: str, body: str, location: str, accident_id: str,  time_start, time_finish):
 
@@ -109,8 +108,8 @@ class Calendar():
             accident.Save()
             logging.info(f"accident {subject} updated")
         except Exception as ex:
-            logging.CRITICAL(f"accident {subject} cant be updated")
-            logging.DEBUG(f"accident {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
+            logging.critical(f"accident {subject} cant be updated")
+            logging.debug(f"accident {subject} details: subject: {subject}, body: {body}, location: {location}, time_start: {time_start}, time_finish: {time_finish} ")
 
     def new_event(self, subject: str, body: str, location: str, id: str,  time_start: str , time_finish: str):
         
@@ -123,9 +122,7 @@ class Calendar():
         new_event.End = time_finish 
         try:
             new_event.Save()
-
             self.db_connection.set(id, new_event.EntryId)
-
             logging.info(f"event {id}  added to calendar {self.calendar_name}")
         except Exception as ex:
             print(ex)
@@ -159,25 +156,30 @@ class Calendar():
 
 def upload_accidents(calendar, accidents):
     for index, row in accidents.iterrows():
+        
         logging.debug(f'{row["id"]}, {row["start_time"]}, {row["finish_time"]}')
-        try:
-            accident_id = calendar.db_connection.get(row["id"])
-            if accident_id:
+        accident_id = calendar.db_connection.get(row["id"])
+        if accident_id:
+            try:
                 calendar.update_accident(subject=row["subject"],
-                                   location=row["location"],
-                                   body=row["id"],
-                                   accident_id=accident_id,
-                                   time_start=row["start_time"],
-                                   time_finish=row["finish_time"])
-            else:
+                            location=row["location"],
+                            body=row["id"],
+                            accident_id=accident_id,
+                            time_start=row["start_time"],
+                            time_finish=row["finish_time"])
+            except Exception as ex:
+                logging.debug(ex)
+        else:
+            try:
                 calendar.new_accident(subject=row["subject"],
-                                      location=row["location"],
-                                      body=row["id"],
-                                      id=row["id"],
-                                      time_start=row["start_time"],
-                                      time_finish=row["finish_time"])
-        except Exception as ex:
-            logging.critical(ex)      
+                                location=row["location"],
+                                body=row["id"],
+                                id=row["id"],
+                                time_start=row["start_time"],
+                                time_finish=row["finish_time"])
+            except Exception as ex:
+                logging.debug(ex)
+            
     else:
         logging.info("upload finished")
 
@@ -243,7 +245,7 @@ def main():
         accident_calendar = Calendar(account=user_email, calendar_name=accidents_calendar, host=redis_host, port=redis_accident_port, password=redis_passwd)
         accidents = normalize() #получение таблицы всех заявок с полями 
         # accident_calendar.update_categories(accidents=accidents) # обновление категорий в календаре чтобы отражать по цветам
-        # cal.delete_all() #выстрел себе в колено
+        # accident_calendar.delete_all() #выстрел себе в колено
         upload_accidents(accident_calendar,accidents) #загрузка всех заявок в календарь 
     except Exception as ex:
         logging.critical(ex)
