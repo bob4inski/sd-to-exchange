@@ -44,8 +44,12 @@ def get_accidents_from_api(locations: dict):
 
             for custom_field in issue.custom_fields:
                 if custom_field.id == 146:
-                    issue_dict["start_time"] = str(datetime.strptime(custom_field.value , "%Y-%m-%d %H:%M:%S") + timedelta(hours=3))
-
+                    try:
+                        issue_dict["start_time"] = str(datetime.strptime(custom_field.value , "%Y-%m-%d %H:%M:%S") + timedelta(hours=3))
+                    except Exception as ex:
+                        logging.critical(f'issue {issue.id} doesnt have start_time')
+                        logging.debug(ex)
+                        continue
                 if custom_field.id == 147:
                     issue_dict["finish_time"] = custom_field.value
 
@@ -53,7 +57,7 @@ def get_accidents_from_api(locations: dict):
                     issue_dict["location"] = locations[int(custom_field.value)]
 
             if issue_dict["finish_time"] == "":
-                finish_date = str(datetime.strptime(issue_dict["start_time"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=1))
+                issue_dict["finish_time"] = str(datetime.strptime(issue_dict["start_time"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=1))
             else:
                 issue_dict["finish_time"] = str(datetime.strptime(issue_dict["finish_time"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3))
             issues_list.append(issue_dict)
