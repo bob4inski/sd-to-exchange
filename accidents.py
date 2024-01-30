@@ -33,39 +33,44 @@ def get_accidents_from_api(locations: dict):
         issues_list = []
 
         for issue in issues:
-            issue_dict = {
-                "id": issue.id,
-                "subject": issue.subject,
-                "status": issue.status,
-                "start_time": "",
-                "finish_time": "",
-                "location": "None"
-                }
+            try:
+                issue_dict = {
+                    "id": issue.id,
+                    "subject": issue.subject,
+                    "status": issue.status,
+                    "start_time": "",
+                    "finish_time": "",
+                    "location": "None"
+                        }
 
-            for custom_field in issue.custom_fields:
-                if custom_field.id == 146:
-                    try:
-                        # issue_dict["start_time"] = str(datetime.strptime(custom_field.value , "%Y-%m-%d %H:%M:%S") + timedelta(hours=3))
-                        issue_dict["start_time"] = custom_field.value
-                    except Exception as ex:
-                        logging.critical(f'issue {issue.id} doesnt have start_time')
-                        logging.debug(ex)
-                        continue
-                if custom_field.id == 147:
-                    issue_dict["finish_time"] = custom_field.value
+                for custom_field in issue.custom_fields:
+                    if custom_field.id == 146:
+                        try:
+                            # issue_dict["start_time"] = str(datetime.strptime(custom_field.value , "%Y-%m-%d %H:%M:%S") + timedelta(hours=3))
+                            issue_dict["start_time"] = custom_field.value
+                        except Exception as ex:
+                            logging.critical(f'issue {issue.id} doesnt have start_time')
+                            logging.debug(ex)
+                            continue
+                    if custom_field.id == 147:
+                        issue_dict["finish_time"] = custom_field.value
 
-                if custom_field.id == 110:
-                    issue_dict["location"] = locations[int(custom_field.value)]
+                    if custom_field.id == 110:
+                        issue_dict["location"] = locations[int(custom_field.value)]
 
-            if issue_dict["finish_time"] == "":
-                issue_dict["finish_time"] = str(datetime.strptime(issue_dict["start_time"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=1))
-            # else:
-            #     issue_dict["finish_time"] = str(datetime.strptime(issue_dict["finish_time"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3))
-            issues_list.append(issue_dict)
+                if issue_dict["finish_time"] == "":
+                    issue_dict["finish_time"] = str(datetime.strptime(issue_dict["start_time"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=1))
+                # else:
+                #     issue_dict["finish_time"] = str(datetime.strptime(issue_dict["finish_time"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3))
+                issues_list.append(issue_dict)
+            except:
+                logging.critical("ошибка при создании issue")
+                logging.critical(ex)
 
         df = pd.DataFrame(issues_list, columns=["id", "subject", "status_id", "start_time", "finish_time", "location"])
 
         return df
+    
     else:
         logging.debug("there is no issues")
         logging.info("shutdown")
