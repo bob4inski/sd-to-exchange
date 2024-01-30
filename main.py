@@ -246,7 +246,7 @@ def main():
     accidents = normalize() #получение таблицы всех заявок с полями 
         # accident_calendar.update_categories(accidents=accidents) # обновление категорий в календаре чтобы отражать по цветам
         # accident_calendar.delete_all() #выстрел себе в колено
-        upload_accidents(accident_calendar,accidents) #загрузка всех заявок в календарь 
+    upload_accidents(accident_calendar,accidents) #загрузка всех заявок в календарь 
     # except Exception as ex:
     #     logging.critical(ex)
 
