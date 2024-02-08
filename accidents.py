@@ -63,7 +63,7 @@ def get_accidents_from_api(locations: dict):
                 # else:
                 #     issue_dict["finish_time"] = str(datetime.strptime(issue_dict["finish_time"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=3))
                 issues_list.append(issue_dict)
-            except:
+            except Exception as ex:
                 logging.critical("ошибка при создании issue")
                 logging.critical(ex)
 
